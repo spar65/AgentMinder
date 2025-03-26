@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "isolatedModules": true, 
+    "skipLibCheck": true,
+    "strict": false
+  },
+  "include": ["src/**/*", "tests/**/*"]
+} 

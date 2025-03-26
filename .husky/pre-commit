@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run the sensitive data scanner on staged files
+echo "Running sensitive data check..."
+npx ts-node ./src/scripts/preCommitScan.ts
+
+# Run linting
+npm run lint 
