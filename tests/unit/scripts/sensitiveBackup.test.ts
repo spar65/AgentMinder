@@ -61,11 +61,14 @@ describe('sensitiveBackup', () => {
 
   describe('backup functionality', () => {
     it('should backup files that exist', async () => {
-      // Mock filesystem checks and reads
+      // We need to fully mock the existsSync to handle multiple calls properly
       (fs.existsSync as jest.Mock)
-        .mockReturnValueOnce(true)  // Backup dir exists check
-        .mockReturnValueOnce(true)  // .env exists check
-        .mockReturnValueOnce(false); // .env.local doesn't exist check
+        .mockImplementation((path) => {
+          if (path.includes('.env.local')) {
+            return false; // .env.local doesn't exist
+          }
+          return true; // All other files exist
+        });
       
       (fs.readFileSync as jest.Mock).mockReturnValue('test file content');
       
@@ -90,8 +93,9 @@ describe('sensitiveBackup', () => {
       const encryptedBackup = encryptionService.encrypt(JSON.stringify(backupData));
       (fs.writeFileSync as jest.Mock)(path.join('secure-backups', 'sensitive-files-backup.enc'), encryptedBackup);
       
-      // Assertions
-      expect(successfulBackups).toEqual(['.env']);
+      // Assertions - only .env should be backed up, not .env.local
+      expect(successfulBackups.length).toBe(1);
+      expect(successfulBackups[0]).toBe('.env');
       expect(successfulBackups).not.toContain('.env.local');
       expect(Object.keys(backupData)).toHaveLength(1);
       expect(encryptionService.encrypt).toHaveBeenCalledWith(JSON.stringify(backupData));
