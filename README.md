@@ -76,16 +76,31 @@ This project follows these development best practices:
 
 ## Security and Secrets Management
 
-This project includes a secure method for storing sensitive information like API keys and tokens:
+This project includes a comprehensive security system for handling sensitive information like API keys and tokens:
 
-1. **Encryption Service**: Uses AES-256-GCM encryption to securely store sensitive information
-2. **Secret Management**: Command-line utility for managing encrypted secrets
-3. **Key Management**: Encryption keys are stored locally and not committed to the repository
-4. **Secure Access**: API for securely accessing secrets at runtime
+1. **Encryption Service**: Uses AES-256-GCM encryption (industry standard) with a 256-bit key for strong security
+2. **Secret Management**: Command-line utilities for managing encrypted secrets and scanning for sensitive data
+3. **Key Management**: Encryption keys are stored locally and never committed to the repository
+4. **Automatic Protection**: Pre-commit hooks automatically detect and encrypt sensitive data before code is pushed
+5. **Secure Backups**: Tools for creating encrypted backups of sensitive configuration files
 
-### Managing Secrets
+### Key Security Features
 
-To manage secrets, use the built-in secrets manager:
+#### 1. Encryption for Sensitive Values
+
+The system can identify and encrypt common sensitive values such as:
+
+- GitHub tokens
+- Figma tokens
+- AWS access keys
+- API keys
+- Database connection strings
+
+Encrypted values are stored in the format: `PLACEHOLDER:encrypted_value`, allowing them to be safely committed to the repository.
+
+#### 2. Managing Secrets
+
+To manage application secrets, use the built-in secrets manager:
 
 ```bash
 npm run secrets
@@ -93,11 +108,11 @@ npm run secrets
 
 This tool allows you to:
 
-- Generate new encrypted secrets
+- Generate new encrypted secrets for application use
 - View existing decrypted secrets (locally only)
 - Add or update secrets in the configuration
 
-### Scanning for Sensitive Data
+#### 3. Scanning and Encrypting Sensitive Data
 
 To scan files for sensitive data and automatically encrypt it:
 
@@ -107,19 +122,22 @@ npm run scan
 
 This tool allows you to:
 
-- Scan specific files for sensitive data
+- Scan specific files for sensitive tokens
 - Scan entire directories recursively
+- Encrypt any found sensitive data
 - Decrypt files when needed locally
 
-### Pre-commit Protection
+#### 4. Pre-commit Protection
 
-The project includes a pre-commit hook that automatically:
+The project includes a pre-commit hook that activates automatically when committing code:
 
 - Scans all staged files for sensitive data
 - Encrypts any found sensitive data
 - Re-stages files with encrypted values
 
-### Backing Up Sensitive Files
+This ensures you never accidentally commit unencrypted sensitive information to GitHub.
+
+#### 5. Backing Up Sensitive Files
 
 To securely back up and restore sensitive files:
 
@@ -129,11 +147,53 @@ npm run backup
 
 This tool allows you to:
 
-- Create encrypted backups of sensitive files (.env, etc.)
+- Create encrypted backups of sensitive files (.env, .encryption-key, etc.)
 - Restore sensitive files from backups
 - List available backups
 
-The encryption key is stored locally in `.encryption-key` (not committed to Git).
+### Decrypting Sensitive Data
+
+When you need to use the original values of encrypted data:
+
+1. To decrypt specific files:
+
+   ```bash
+   npm run scan
+   ```
+
+   Then select option 3 (Decrypt a file) and provide the file path.
+
+2. To view application secrets:
+
+   ```bash
+   npm run secrets
+   ```
+
+   Then select option 2 (View existing secrets).
+
+3. To restore from backup:
+   ```bash
+   npm run backup
+   ```
+   Then select option 2 (Restore from backup).
+
+### Important Security Notes
+
+1. **Encryption Key**: The `.encryption-key` file is critical - if lost, encrypted data cannot be recovered. Store a backup of this file in a secure location separate from your codebase.
+
+2. **Files Not Automatically Backed Up**: The following files are NOT automatically backed up and should be separately secured:
+
+   - Source code (use Git)
+   - Large data files
+   - Binary files
+   - Node modules
+   - Build artifacts
+
+3. **Transferring to a New Machine**: When setting up on a new machine, you must securely transfer the `.encryption-key` file to decrypt any encrypted values.
+
+4. **Emergency Recovery**: Create regular backups using the `npm run backup` command and store them securely offline or in an encrypted cloud storage service.
+
+5. **Key Rotation**: For maximum security, consider rotating your encryption key periodically by generating a new key and re-encrypting all sensitive data.
 
 ## Project Structure
 
