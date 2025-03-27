@@ -14,6 +14,8 @@ out/
 .env
 .env.local
 .env.*.local
+# We need .env.test for CI/CD, so don't ignore it
+!.env.test
 
 # Encryption and secrets
 .encryption-key
@@ -53,4 +55,14 @@ logs/
 
 # System Files
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Docker
+.docker/
+docker/data/
+data/db/
+mongodb_data/
+
+# Docker-specific entries
+.docker/Dockerfile
+.docker/docker-compose.yml 

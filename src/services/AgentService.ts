@@ -1,14 +1,15 @@
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import Agent, { IAgent, AgentStatus } from '../models/Agent';
 import { ApiError } from '../middleware/errorHandler';
-import { createLogger } from '../utils/logger';
-
-const logger = createLogger();
+import { loggerService } from '../utils/logger';
+import CommissionStructure from '../models/CommissionStructure';
+import bcrypt from 'bcryptjs';
+import { NotFoundError, ValidationError, DatabaseError, ConflictError } from '../utils/errors';
 
 /**
  * Agent service for handling agent-related business logic
  */
-class AgentService {
+export class AgentService {
   /**
    * Get all agents with filtering, sorting, and pagination
    */
@@ -54,7 +55,7 @@ class AgentService {
         }
       };
     } catch (error) {
-      logger.error('Error fetching agents:', { error });
+      loggerService.error('Error fetching agents:', { error });
       throw new ApiError('Failed to fetch agents', 500);
     }
   }
@@ -82,7 +83,7 @@ class AgentService {
         throw error;
       }
       
-      logger.error(`Error fetching agent ${id}:`, { error });
+      loggerService.error(`Error fetching agent ${id}:`, { error });
       throw new ApiError('Failed to fetch agent', 500);
     }
   }
@@ -90,62 +91,99 @@ class AgentService {
   /**
    * Create new agent
    */
-  async createAgent(agentData: Partial<IAgent>): Promise<IAgent> {
+  async createAgent(agentData: {
+    name: string;
+    email: string;
+    password: string;
+    phone?: string;
+    address?: string;
+  }): Promise<any> {
     try {
-      // Create new agent
-      const agent = await Agent.create(agentData);
-      
-      logger.info(`New agent created: ${agent._id}`);
-      
+      loggerService.info('Creating new agent', {
+        email: agentData.email,
+        name: agentData.name
+      });
+
+      // Check if email already exists
+      const existingAgent = await Agent.findOne({ email: agentData.email });
+      if (existingAgent) {
+        throw new ConflictError('Email already registered');
+      }
+
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(agentData.password, salt);
+
+      // Create agent
+      const agent = await Agent.create({
+        ...agentData,
+        password: hashedPassword
+      });
+
+      loggerService.info('Agent created successfully', {
+        agentId: agent._id
+      });
+
       return agent;
     } catch (error) {
-      // Handle validation and duplicate errors
-      if (error instanceof mongoose.Error.ValidationError) {
-        const messages = Object.values(error.errors).map(err => err.message);
-        throw new ApiError(messages.join(', '), 400);
-      } else if ((error as any).code === 11000) {
-        throw new ApiError('Email already exists', 400);
+      loggerService.error('Error creating agent', {
+        error,
+        email: agentData.email
+      });
+
+      if (error instanceof ConflictError) {
+        throw error;
       }
-      
-      logger.error('Error creating agent:', { error });
-      throw new ApiError('Failed to create agent', 500);
+
+      throw new DatabaseError('Failed to create agent');
     }
   }
   
   /**
    * Update agent
    */
-  async updateAgent(id: string, updateData: Partial<IAgent>): Promise<IAgent> {
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      throw new ApiError('Invalid agent ID', 400);
+  async updateAgent(
+    id: string,
+    updateData: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      address?: string;
     }
-    
+  ): Promise<any> {
     try {
-      // Find and update agent
-      const agent = await Agent.findByIdAndUpdate(id, updateData, {
-        new: true,
-        runValidators: true
+      loggerService.info('Updating agent', {
+        id,
+        updateData
       });
-      
+
+      const agent = await Agent.findByIdAndUpdate(
+        id,
+        { $set: updateData },
+        { new: true }
+      ).select('-password');
+
       if (!agent) {
-        throw new ApiError('Agent not found', 404);
+        throw new NotFoundError(`Agent not found with id ${id}`);
       }
-      
-      logger.info(`Agent updated: ${id}`);
-      
+
+      loggerService.info('Agent updated successfully', {
+        agentId: agent._id
+      });
+
       return agent;
     } catch (error) {
-      // Handle validation errors
-      if (error instanceof mongoose.Error.ValidationError) {
-        const messages = Object.values(error.errors).map(err => err.message);
-        throw new ApiError(messages.join(', '), 400);
-      } else if (error instanceof ApiError) {
+      loggerService.error('Error updating agent', {
+        error,
+        id,
+        updateData
+      });
+
+      if (error instanceof NotFoundError) {
         throw error;
       }
-      
-      logger.error(`Error updating agent ${id}:`, { error });
-      throw new ApiError('Failed to update agent', 500);
+
+      throw new DatabaseError('Failed to update agent');
     }
   }
   
@@ -177,7 +215,7 @@ class AgentService {
         throw error;
       }
       
-      logger.error(`Error updating agent status ${id}:`, { error });
+      loggerService.error(`Error updating agent status ${id}:`, { error });
       throw new ApiError('Failed to update agent status', 500);
     }
   }
@@ -186,27 +224,31 @@ class AgentService {
    * Delete agent
    */
   async deleteAgent(id: string): Promise<void> {
-    // Validate ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      throw new ApiError('Invalid agent ID', 400);
-    }
-    
     try {
-      // Find and delete agent
+      loggerService.info('Deleting agent', { id });
+
       const agent = await Agent.findByIdAndDelete(id);
-      
       if (!agent) {
-        throw new ApiError('Agent not found', 404);
+        throw new NotFoundError(`Agent not found with id ${id}`);
       }
-      
-      logger.info(`Agent deleted: ${id}`);
+
+      // Also delete associated commission structure
+      await CommissionStructure.deleteOne({ agent: id });
+
+      loggerService.info('Agent deleted successfully', {
+        agentId: id
+      });
     } catch (error) {
-      if (error instanceof ApiError) {
+      loggerService.error('Error deleting agent', {
+        error,
+        id
+      });
+
+      if (error instanceof NotFoundError) {
         throw error;
       }
-      
-      logger.error(`Error deleting agent ${id}:`, { error });
-      throw new ApiError('Failed to delete agent', 500);
+
+      throw new DatabaseError('Failed to delete agent');
     }
   }
   
@@ -222,7 +264,7 @@ class AgentService {
         throw error;
       }
       
-      logger.error(`Error fetching team members for agent ${agentId}:`, { error });
+      loggerService.error(`Error fetching team members for agent ${agentId}:`, { error });
       throw new ApiError('Failed to fetch team members', 500);
     }
   }
@@ -239,10 +281,89 @@ class AgentService {
         throw error;
       }
       
-      logger.error(`Error fetching supervisor chain for agent ${agentId}:`, { error });
+      loggerService.error(`Error fetching supervisor chain for agent ${agentId}:`, { error });
       throw new ApiError('Failed to fetch supervisor chain', 500);
+    }
+  }
+
+  /**
+   * List agents with pagination
+   */
+  async listAgents(page: number = 1, limit: number = 10): Promise<any> {
+    try {
+      loggerService.info('Listing agents', {
+        page,
+        limit
+      });
+
+      const skip = (page - 1) * limit;
+      const [agents, total] = await Promise.all([
+        Agent.find()
+          .select('-password')
+          .skip(skip)
+          .limit(limit)
+          .sort({ createdAt: -1 }),
+        Agent.countDocuments()
+      ]);
+
+      loggerService.debug('Found agents', {
+        count: agents.length,
+        total
+      });
+
+      return {
+        agents,
+        total,
+        page,
+        pages: Math.ceil(total / limit)
+      };
+    } catch (error) {
+      loggerService.error('Error listing agents', {
+        error,
+        page,
+        limit
+      });
+      throw new DatabaseError('Failed to list agents');
+    }
+  }
+
+  /**
+   * Authenticate agent
+   */
+  async authenticateAgent(email: string, password: string): Promise<any> {
+    try {
+      loggerService.info('Authenticating agent', { email });
+
+      const agent = await Agent.findOne({ email });
+      if (!agent) {
+        throw new ValidationError('Invalid credentials');
+      }
+
+      const isMatch = await bcrypt.compare(password, agent.password);
+      if (!isMatch) {
+        throw new ValidationError('Invalid credentials');
+      }
+
+      loggerService.info('Agent authenticated successfully', {
+        agentId: agent._id
+      });
+
+      return agent;
+    } catch (error) {
+      loggerService.error('Error authenticating agent', {
+        error,
+        email
+      });
+
+      if (error instanceof ValidationError) {
+        throw error;
+      }
+
+      throw new DatabaseError('Failed to authenticate agent');
     }
   }
 }
 
-export default new AgentService(); 
+// Create and export a singleton instance of the service
+const agentService = new AgentService();
+export default agentService; 

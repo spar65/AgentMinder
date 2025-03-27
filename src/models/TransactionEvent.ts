@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { mongooseLogger } from '../utils/mongooseLogger';
 
 /**
  * Transaction event type enum
@@ -76,6 +77,9 @@ TransactionEventSchema.index({ transaction: 1, timestamp: 1 });
 TransactionEventSchema.index({ type: 1 });
 TransactionEventSchema.index({ user: 1 });
 TransactionEventSchema.index({ timestamp: 1 });
+
+// Add logging plugin
+TransactionEventSchema.plugin(mongooseLogger);
 
 /**
  * Static method to create a status change event

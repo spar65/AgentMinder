@@ -63,6 +63,66 @@ Agent Minder is a comprehensive system for managing agents, handling payments, a
 - `npm run lint:fix` - Fix code quality issues automatically
 - `npm run format` - Format code according to Prettier rules
 
+### Production Scripts
+
+- `npm run setup:prod` - Set up the production environment and generate configuration files
+- `npm run deploy:prod` - Build and deploy the application using Docker
+- `npm run logs:prod` - View application logs from Docker containers
+- `npm run stop:prod` - Stop the production containers
+- `npm run backup:db` - Create a backup of the MongoDB database
+- `npm run build:prod` - Build the TypeScript project for production
+
+## Production Deployment
+
+For production deployment, we've created comprehensive scripts to automate the process:
+
+### Setting Up Production Environment
+
+1. Run the production setup script:
+
+   ```bash
+   npm run setup:prod
+   ```
+
+   This will:
+
+   - Create necessary Docker configuration files
+   - Generate secure passwords and credentials
+   - Set up environment variables
+   - Create database initialization scripts
+
+2. Deploy the application:
+
+   ```bash
+   npm run deploy:prod
+   ```
+
+   This will build and start the application and MongoDB containers as defined in docker-compose.production.yml.
+
+### Database Management
+
+To create a backup of the MongoDB database:
+
+```bash
+npm run backup:db
+```
+
+To restore a backup:
+
+```bash
+./scripts/restore-mongodb.sh <backup_filename>
+```
+
+### Health Monitoring
+
+Check the health of your production environment:
+
+```bash
+./scripts/health-check.sh
+```
+
+For more details, see [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md).
+
 ## Development Best Practices
 
 This project follows these development best practices:
@@ -73,6 +133,64 @@ This project follows these development best practices:
 4. **Separation of Concerns**: Code is organized into layers (controllers, services, repositories)
 5. **Security**: Environment variables for sensitive information, authentication middleware
 6. **Documentation**: Code is documented with JSDoc comments, API documentation with Swagger
+
+## Logging System
+
+The application uses a comprehensive logging system built with Winston, providing structured logging across all components:
+
+### Key Logging Features
+
+1. **Structured Logging**: All logs include contextual metadata for easier debugging and analysis
+2. **Log Levels**: Different log levels (info, warn, error, debug) for appropriate filtering
+3. **Centralized Configuration**: Logging is configured centrally and used consistently
+4. **Database Operation Logging**: All database operations are automatically logged via Mongoose plugins
+5. **Request/Response Logging**: API requests and responses are logged with timing information
+6. **Error Tracing**: Errors include detailed stack traces in development mode
+
+For complete documentation on the logging system, see [Logging Documentation](docs/Logging.md).
+
+### Mongoose Logger Plugin
+
+All database models utilize a custom Mongoose plugin that logs:
+
+- Document creation
+- Document updates
+- Find operations
+- Delete operations
+
+The logs include collection names, operation types, document IDs, and any error information, making it easier to track database interactions and troubleshoot issues.
+
+### Using the Logger
+
+To log information in your own code:
+
+```typescript
+import { loggerService } from '../utils/logger';
+
+// Log an informational message
+loggerService.info('User registered successfully', { userId: user._id });
+
+// Log a warning
+loggerService.warn('Rate limit approaching', { ip: req.ip, requestCount: 95 });
+
+// Log an error with stack trace
+loggerService.error('Payment processing failed', {
+  error,
+  userId: user._id,
+  amount: payment.amount,
+});
+```
+
+### Log Rotation and Storage
+
+Logs are automatically rotated to prevent overwhelming disk usage:
+
+- Daily rotation with date-based filenames
+- Maximum file size limits
+- Compression of older logs
+- Automatic cleanup of logs older than 30 days
+
+Log files are stored in the `logs/` directory.
 
 ## Security and Secrets Management
 
@@ -209,6 +327,10 @@ agent-minder/
 │   └── index.ts         # App entry point
 ├── tests/               # Test files
 ├── docs/                # Documentation
+│   ├── API.md           # API documentation
+│   ├── DATABASE.md      # Database guide
+│   ├── Logging.md       # Logging system documentation
+│   └── Security.md      # Security information
 └── dist/                # Compiled JavaScript
 ```
 
@@ -226,6 +348,52 @@ API documentation is available at `/api-docs` when the server is running.
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Testing with Docker MongoDB
+
+We use a real MongoDB database running in Docker for our tests to ensure reliable and consistent test results.
+
+### Prerequisites
+
+- Docker and Docker Compose installed on your machine
+
+### Starting the Database
+
+```bash
+# Start the MongoDB containers
+npm run docker:up
+
+# Verify the database connection
+npm run db:test
+```
+
+### Running Tests
+
+```bash
+# Run tests with the database already running
+npm test
+
+# Or to start Docker, test the connection and run tests in one command
+npm run test:with-db
+```
+
+### Managing Docker Containers
+
+```bash
+# Start the containers (if they already exist)
+npm run docker:start
+
+# Stop the containers (keeping the data)
+npm run docker:stop
+
+# Stop and remove the containers
+npm run docker:down
+
+# View Docker logs
+npm run docker:logs
+```
+
+The test MongoDB runs on port 27018 so it doesn't conflict with any local MongoDB instance. Test data is automatically cleared between test runs.
 
 ```
 

@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import AgentService from '../../../src/services/AgentService';
+import agentService from '../../../src/services/AgentService';
 import Agent, { AgentStatus } from '../../../src/models/Agent';
 import { ApiError } from '../../../src/middleware/errorHandler';
 
@@ -27,7 +27,7 @@ describe('AgentService Tests', () => {
       // Mock Agent.findById
       (Agent.findById as jest.Mock).mockResolvedValue(mockAgent);
       
-      const result = await AgentService.getAgentById('validAgentId');
+      const result = await agentService.getAgentById('validAgentId');
       
       expect(result).toEqual(mockAgent);
       expect(Agent.findById).toHaveBeenCalledWith('validAgentId');
@@ -38,7 +38,7 @@ describe('AgentService Tests', () => {
       jest.spyOn(mongoose.Types.ObjectId, 'isValid').mockReturnValue(false);
       
       await expect(
-        AgentService.getAgentById('invalidAgentId')
+        agentService.getAgentById('invalidAgentId')
       ).rejects.toThrow('Invalid agent ID');
     });
     
@@ -50,7 +50,7 @@ describe('AgentService Tests', () => {
       (Agent.findById as jest.Mock).mockResolvedValue(null);
       
       await expect(
-        AgentService.getAgentById('nonExistentAgentId')
+        agentService.getAgentById('nonExistentAgentId')
       ).rejects.toThrow('Agent not found');
     });
   });

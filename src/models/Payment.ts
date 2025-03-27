@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { mongooseLogger } from '../utils/mongooseLogger';
 
 /**
  * Payment status enum
@@ -89,6 +90,9 @@ PaymentSchema.index({ agent: 1 });
 PaymentSchema.index({ status: 1 });
 PaymentSchema.index({ type: 1 });
 PaymentSchema.index({ createdAt: 1 });
+
+// Add logging plugin
+PaymentSchema.plugin(mongooseLogger);
 
 // Export the model
 const Payment = mongoose.model<IPayment>('Payment', PaymentSchema);

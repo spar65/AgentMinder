@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { mongooseLogger } from '../utils/mongooseLogger';
 
 /**
  * Transaction status enum
@@ -232,6 +233,9 @@ TransactionSchema.pre('save', function(this: ITransaction, next) {
   }
   next();
 });
+
+// Add logging plugin
+TransactionSchema.plugin(mongooseLogger);
 
 // Generate a unique reference number if not provided
 TransactionSchema.pre('save', async function(this: ITransaction, next) {

@@ -6,6 +6,11 @@ import { createLogger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
 import apiRoutes from './routes';
 import swaggerSpec from './config/swagger';
+import { Server } from 'http';
+import { connectToDatabase, disconnectFromDatabase } from './config/database';
+import { responseTimeMiddleware } from './middleware/responseTimeMiddleware';
+import { loggingMiddleware } from './middleware/loggingMiddleware';
+import { loggerService } from './utils/logger';
 
 // Load environment variables
 dotenv.config();
@@ -16,10 +21,20 @@ const logger = createLogger();
 // Initialize Express app
 const app = express();
 const port = process.env.PORT || 3000;
+let server: Server | null = null;
+
+// Make the server globally accessible for tests
+declare global {
+  var server: Server | null;
+}
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Add custom middleware
+app.use(responseTimeMiddleware);
+app.use(loggingMiddleware);
 
 // Add basic security headers
 app.use((req, res, next) => {
@@ -56,32 +71,71 @@ app.get('/', (req, res) => {
 // Error handling middleware
 app.use(errorHandler);
 
-// Connect to MongoDB
-const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/agent-minder';
-
-const startServer = async (): Promise<void> => {
+const startServer = async (): Promise<Server> => {
   try {
-    await mongoose.connect(mongoUri);
-    logger.info('Connected to MongoDB');
+    // Connect to MongoDB using the centralized database module
+    await connectToDatabase();
+    loggerService.info('Connected to MongoDB');
     
-    app.listen(port, () => {
-      logger.info(`Server running on port ${port}`);
-      logger.info(`API available at http://localhost:${port}/api`);
-      logger.info(`API Documentation available at http://localhost:${port}/api/docs`);
+    // Create server
+    server = app.listen(port, () => {
+      loggerService.info(`Server running on port ${port}`);
+      loggerService.info(`API available at http://localhost:${port}/api`);
+      loggerService.info(`API Documentation available at http://localhost:${port}/api/docs`);
     });
+    
+    // Store server globally for tests to access
+    global.server = server;
+    
+    return server;
   } catch (error) {
-    logger.error('Failed to connect to MongoDB', { error });
+    loggerService.error('Failed to start server', { error });
     process.exit(1);
   }
 };
 
+const stopServer = async (): Promise<void> => {
+  if (server) {
+    await new Promise<void>((resolve) => {
+      server!.close(() => {
+        loggerService.info('Server stopped');
+        resolve();
+      });
+    });
+    server = null;
+    global.server = null;
+  }
+  
+  // Close MongoDB connection using the centralized database module
+  await disconnectFromDatabase();
+  await mongoose.disconnect();
+  loggerService.info('Disconnected from MongoDB');
+};
+
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (error) => {
-  logger.error('Unhandled Rejection', { error });
+  loggerService.error('Unhandled Rejection', { error });
   process.exit(1);
 });
 
-// Start the server
-startServer();
+// Handle SIGTERM signal
+process.on('SIGTERM', async () => {
+  loggerService.info('SIGTERM received. Starting graceful shutdown...');
+  await stopServer();
+  process.exit(0);
+});
 
+// Handle SIGINT signal (Ctrl+C)
+process.on('SIGINT', async () => {
+  loggerService.info('SIGINT received. Starting graceful shutdown...');
+  await stopServer();
+  process.exit(0);
+});
+
+// Start the server if not being imported in tests
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
+
+export { app, startServer, stopServer };
 export default app; 

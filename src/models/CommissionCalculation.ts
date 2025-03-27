@@ -1,4 +1,5 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Model } from 'mongoose';
+import { mongooseLogger } from '../utils/mongooseLogger';
 
 /**
  * Commission status enum
@@ -22,6 +23,16 @@ export interface CommissionAdjustment {
   appliedAt: Date;
 }
 
+// Interface for static methods
+interface CommissionCalculationModel extends Model<ICommissionCalculation> {
+  getPendingCommissionsTotal(agentId: mongoose.Types.ObjectId): Promise<number>;
+  getAgentCommissionStats(
+    agentId: mongoose.Types.ObjectId,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<Record<string, any>>;
+}
+
 /**
  * Commission calculation document interface
  */
@@ -42,6 +53,7 @@ export interface ICommissionCalculation extends Document {
   updatedAt: Date;
   
   // Methods
+  calculateFinalAmount(): number;
   applyAdjustment(reason: string, amount: number, appliedBy?: mongoose.Types.ObjectId, description?: string): Promise<void>;
   approve(approvedBy: mongoose.Types.ObjectId): Promise<void>;
   markAsPaid(transactionId: mongoose.Types.ObjectId): Promise<void>;
@@ -65,7 +77,8 @@ const CommissionCalculationSchema = new Schema<ICommissionCalculation>(
     commissionStructure: {
       type: Schema.Types.ObjectId,
       ref: 'CommissionStructure',
-      required: [true, 'Commission structure is required'],
+      // Not required for agent base rate calculations
+      required: false,
     },
     baseAmount: {
       type: Number,
@@ -130,6 +143,9 @@ const CommissionCalculationSchema = new Schema<ICommissionCalculation>(
     timestamps: true,
   }
 );
+
+// Add logging plugin
+CommissionCalculationSchema.plugin(mongooseLogger);
 
 // Create indexes for common queries
 CommissionCalculationSchema.index({ agent: 1 });
@@ -288,7 +304,7 @@ CommissionCalculationSchema.statics.getAgentCommissionStats = async function(
 };
 
 // Export the model
-const CommissionCalculation = mongoose.model<ICommissionCalculation>(
+const CommissionCalculation = mongoose.model<ICommissionCalculation, CommissionCalculationModel>(
   'CommissionCalculation',
   CommissionCalculationSchema
 );

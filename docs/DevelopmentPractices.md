@@ -158,4 +158,87 @@ This document outlines the development best practices to be followed when workin
 - Monitor application health and performance
 - Set up alerts for critical issues
 
+### Logging System Architecture
+
+The application uses a comprehensive logging system built with Winston:
+
+1. **Central Logger Configuration**:
+
+   - Defined in `src/utils/logger.ts`
+   - Exports `loggerService` for application-wide use
+   - Configures appropriate transports based on environment
+
+2. **Log Levels**:
+
+   - `error`: Critical issues affecting functionality
+   - `warn`: Potential issues or edge cases
+   - `info`: General operational information
+   - `debug`: Detailed information for troubleshooting
+   - `verbose`: More detailed information than debug
+
+3. **Contextual Logging**:
+
+   - Always include relevant metadata with logs
+   - Add request IDs for tracking requests through the system
+   - Include user/agent IDs when available
+   - For errors, include the full error object
+
+4. **Database Logging**:
+
+   - All database models use the `mongooseLogger` plugin
+   - Automatically logs document operations
+   - Captures operation type, collection, document ID
+   - Records errors with full stack traces
+
+5. **Request Logging**:
+   - `loggingMiddleware` logs all API requests
+   - `responseTimeMiddleware` tracks response times
+   - Logs include method, path, status code, and timing
+
+### Best Practices for Logging
+
+1. **When to Use Each Log Level**:
+
+   - `error`: Service failures, unexpected exceptions
+   - `warn`: Handled errors, validation failures
+   - `info`: Service startup, major operations
+   - `debug`: Input/output values, operation details
+   - `verbose`: Detailed flow information
+
+2. **Adding Context to Logs**:
+
+   ```typescript
+   // Good - includes context
+   loggerService.info('User permission updated', {
+     userId: user.id,
+     permission: newPermission,
+     requestId: req.id,
+   });
+
+   // Bad - lacks context
+   loggerService.info('Permission updated');
+   ```
+
+3. **Error Logging**:
+
+   ```typescript
+   try {
+     // Operation that might fail
+   } catch (error) {
+     loggerService.error('Failed to process payment', {
+       error, // Include the full error object
+       userId: user.id,
+       amount: payment.amount,
+     });
+     throw error; // Rethrow or handle appropriately
+   }
+   ```
+
+4. **Security Considerations**:
+   - Never log sensitive information (passwords, tokens, etc.)
+   - Sanitize user input before logging
+   - Be careful with error messages that might reveal system details
+
+By following these practices, we will maintain comprehensive logging that helps with debugging, performance monitoring, and audit trails throughout the application.
+
 By following these best practices, we will maintain a high-quality, maintainable, and secure codebase for the Agent Minder project.

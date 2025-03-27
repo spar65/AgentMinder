@@ -19,6 +19,7 @@ describe('Agent Model Tests', () => {
     lastName: 'Doe',
     email: 'john.doe@example.com',
     phoneNumber: '123-456-7890',
+    password: 'securePassword123',
     status: AgentStatus.ACTIVE,
     commissionRate: 10,
     specializations: ['Sales', 'Marketing'],

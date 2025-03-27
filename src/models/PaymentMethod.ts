@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { mongooseLogger } from '../utils/mongooseLogger';
 
 /**
  * Payment method type enum
@@ -185,6 +186,9 @@ PaymentMethodSchema.statics.getDefaultPaymentMethod = function(
     status: PaymentMethodStatus.ACTIVE
   });
 };
+
+// Add logging plugin
+PaymentMethodSchema.plugin(mongooseLogger);
 
 // Export the model
 const PaymentMethod = mongoose.model<IPaymentMethod>('PaymentMethod', PaymentMethodSchema);

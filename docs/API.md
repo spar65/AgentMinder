@@ -18,6 +18,18 @@ Authentication is handled via JWT tokens. To access protected endpoints:
    Authorization: Bearer <your_token>
    ```
 
+## Request Tracing
+
+Every API request is assigned a unique ID that is included in all related log entries. This makes it possible to trace the complete lifecycle of a request through the system.
+
+For debugging purposes, the request ID is returned in the response header:
+
+```
+X-Request-ID: 7cefbe8e-6bef-4508-aba5-3705707cae2a
+```
+
+When reporting issues or working with the development team, please include this request ID to help identify the relevant log entries.
+
 ## Error Handling
 
 The API uses conventional HTTP response codes to indicate success or failure of a request. Generally:
@@ -46,6 +58,7 @@ GET /agents
 ```
 
 Query Parameters:
+
 - `page`: Page number (default: 1)
 - `limit`: Number of items per page (default: 10)
 - `sort`: Field to sort by (prefix with - for descending order, e.g., -createdAt)
@@ -53,6 +66,7 @@ Query Parameters:
 - `search`: Text search on agent fields
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -101,9 +115,11 @@ GET /agents/:id
 ```
 
 Parameters:
+
 - `id`: Agent ID
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -130,6 +146,7 @@ POST /agents
 ```
 
 Request Body:
+
 ```json
 {
   "firstName": "John",
@@ -156,6 +173,7 @@ Request Body:
 ```
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -195,11 +213,13 @@ PUT /agents/:id
 ```
 
 Parameters:
+
 - `id`: Agent ID
 
 Request Body: Same as Create Agent (all fields are optional for updates)
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -226,9 +246,11 @@ PATCH /agents/:id/status
 ```
 
 Parameters:
+
 - `id`: Agent ID
 
 Request Body:
+
 ```json
 {
   "status": "inactive"
@@ -236,6 +258,7 @@ Request Body:
 ```
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -257,9 +280,11 @@ DELETE /agents/:id
 ```
 
 Parameters:
+
 - `id`: Agent ID
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -274,14 +299,17 @@ GET /agents/:id/payments
 ```
 
 Parameters:
+
 - `id`: Agent ID
 
 Query Parameters:
+
 - `page`: Page number (default: 1)
 - `limit`: Number of items per page (default: 10)
 - `sort`: Field to sort by (default: -createdAt)
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -328,6 +356,7 @@ GET /payments
 ```
 
 Query Parameters:
+
 - `page`: Page number (default: 1)
 - `limit`: Number of items per page (default: 10)
 - `sort`: Field to sort by (default: -createdAt)
@@ -344,9 +373,11 @@ GET /payments/:id
 ```
 
 Parameters:
+
 - `id`: Payment ID
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -377,6 +408,7 @@ POST /payments
 ```
 
 Request Body:
+
 ```json
 {
   "agent": "612f4c90b3e465e5a03c28d1",
@@ -387,6 +419,7 @@ Request Body:
 ```
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -410,11 +443,13 @@ PUT /payments/:id
 ```
 
 Parameters:
+
 - `id`: Payment ID
 
 Request Body: Same as Create Payment (except agent and status cannot be changed)
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -438,9 +473,11 @@ PATCH /payments/:id/status
 ```
 
 Parameters:
+
 - `id`: Payment ID
 
 Request Body:
+
 ```json
 {
   "status": "completed"
@@ -448,6 +485,7 @@ Request Body:
 ```
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -471,11 +509,13 @@ DELETE /payments/:id
 ```
 
 Parameters:
+
 - `id`: Payment ID
 
 Note: Completed payments cannot be deleted.
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -490,9 +530,11 @@ POST /payments/:id/process
 ```
 
 Parameters:
+
 - `id`: Payment ID
 
 Example Response:
+
 ```json
 {
   "success": true,
@@ -510,4 +552,4 @@ Example Response:
     "updatedAt": "2023-03-16T14:12:00.123Z"
   }
 }
-``` 
+```

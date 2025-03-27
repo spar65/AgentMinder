@@ -1,6 +1,6 @@
 # Code Repository Guide
 
-This guide provides best practices for working with code repositories in the AgentMinder project, including when to use different approaches for GitHub interactions and how to use the Cursor AI assistant with our custom rules system.
+This guide provides best practices for working with code repositories in the AgentMinder project, including when to use different approaches for GitHub interactions.
 
 ## Git and GitHub Best Practices
 
@@ -256,98 +256,8 @@ git branch -d branch-name
    # Then commit again
    ```
 
-## Cursor Rules System
-
-The AgentMinder project uses a custom rules system for the Cursor AI assistant to ensure consistent code quality, style, and security across the project. This section provides guidelines for using and maintaining this system.
-
-### Rules System Structure
-
-The Cursor rules are located in `~/.cursor/rules/` in the user's home directory and follow a specific naming convention:
-
-- `000-core-guidelines.mdc` - Main entry point that includes all other guidelines
-- `001-cursor-rules.mdc` - Meta-rules for creating and managing rules themselves
-- `010-security-compliance.mdc` - Security and compliance guidelines
-- `100-coding-patterns.mdc` - General coding standards and patterns
-- `110-integration-dependencies.mdc` - Guidelines for third-party integrations
-- `120-technical-stack.mdc` - Technical stack-specific guidelines
-- `200-deployment-infrastructure.mdc` - Deployment and infrastructure guidelines
-- `210-operations-incidents.mdc` - Operations and incident management
-- `300-testing-standards.mdc` - Testing guidelines and best practices
-- `800-workflow-guidelines.mdc` - Development workflow guidelines
-
-### Rules Prefix Convention
-
-Rules are prefixed according to their category:
-
-- `0XX`: Core standards
-- `1XX`: Tool configs/Language rules
-- `2XX`: Framework rules
-- `3XX`: Testing standards
-- `8XX`: Workflows
-- `9XX`: Templates
-
-### Setting Up the Rules System
-
-To set up the Cursor rules system in a new environment:
-
-1. Create the rules directory:
-
-   ```bash
-   mkdir -p ~/.cursor/rules
-   ```
-
-2. Copy all rule files from the project's shared rules:
-
-   ```bash
-   cp -p /path/to/shared/rules/*.mdc ~/.cursor/rules/
-   ```
-
-3. Restart Cursor to ensure it loads the latest rules.
-
-### Rule File Structure
-
-Each rule file follows this format:
-
-```
-description: When to use this rule
-globs: File patterns to which this rule applies
-
-# Rule Title
-
-Rule content...
-```
-
-### Using Project-Specific Rules
-
-For project-specific rules:
-
-1. Create a `.cursor/rules` directory in the project root
-2. Add project-specific rule files following the same naming convention
-3. Project-specific rules will override global rules when working in that project
-
-### Creating Custom Rules
-
-To create a new rule:
-
-1. Follow the guidelines in `001-cursor-rules.mdc`
-2. Choose an appropriate prefix based on the rule type
-3. Add the required `description` and `globs` properties
-4. Use proper Markdown formatting with clear headings
-5. Add the rule to `000-core-guidelines.mdc` using the `@include` directive
-
-### Troubleshooting Rules
-
-If Cursor isn't following the rules:
-
-1. Check that the rules are in `~/.cursor/rules/`
-2. Verify file permissions allow Cursor to read the files
-3. Restart Cursor to ensure it loads the latest rules
-4. Make sure each rule file has the correct format with `description` and `globs` defined
-
 ## Conclusion
 
 For the AgentMinder project, the command line Git approach is strongly recommended for most development tasks due to its performance, reliability, and security benefits. The MCP integration should be reserved for quick, simple tasks where convenience outweighs the need for full Git functionality.
-
-The Cursor rules system provides consistent guidance to the AI assistant across the entire project, ensuring code quality, security, and best practices are automatically enforced. By following these guidelines and leveraging the custom rules system, the development process becomes more efficient and produces higher quality code.
 
 When in doubt, especially when working with code that might contain sensitive information, always use the command line approach with our built-in security tools.

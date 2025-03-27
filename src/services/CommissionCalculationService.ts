@@ -1,9 +1,12 @@
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { ApiError } from '../middleware/errorHandler';
 import { createLogger } from '../utils/logger';
 import CommissionCalculation, { ICommissionCalculation, CommissionStatus } from '../models/CommissionCalculation';
 import CommissionStructure from '../models/CommissionStructure';
-import AgentService from './AgentService';
+import agentService from './AgentService';
+import Agent from '../models/Agent';
+import { loggerService } from '../utils/logger';
+import { NotFoundError, ValidationError, DatabaseError } from '../utils/errors';
 
 const logger = createLogger();
 
@@ -21,90 +24,122 @@ class CommissionCalculationService {
     commissionStructureId?: string
   ): Promise<ICommissionCalculation> {
     try {
+      loggerService.info('Starting commission calculation', {
+        agentId,
+        transactionId,
+        baseAmount
+      });
+
       // Validate agent
-      const agent = await AgentService.getAgentById(agentId);
+      const agent = await agentService.getAgentById(agentId);
       
-      // Get the commission structure - either specified or default for the agent
-      let commissionStructure;
+      // If a commission structure ID is provided, use that
       if (commissionStructureId) {
-        // Use specified commission structure
-        if (!mongoose.Types.ObjectId.isValid(commissionStructureId)) {
-          throw new ApiError('Invalid commission structure ID', 400);
-        }
-        
-        commissionStructure = await CommissionStructure.findById(commissionStructureId);
-        
-        if (!commissionStructure) {
-          throw new ApiError('Commission structure not found', 404);
-        }
-        
-        // Verify the structure is valid for this agent
-        if (commissionStructure.agent && 
-            commissionStructure.agent.toString() !== agentId &&
-            !commissionStructure.isDefault) {
-          throw new ApiError('Commission structure not valid for this agent', 400);
-        }
-      } else {
-        // Find default structure for the agent
-        commissionStructure = await CommissionStructure.findOne({
-          $and: [
-            {
-              $or: [
-                { agent: agentId, isDefault: true },
-                { agent: null, isDefault: true }
-              ]
-            },
-            {
-              $or: [
-                { expirationDate: { $exists: false } },
-                { expirationDate: null },
-                { expirationDate: { $gt: new Date() } }
-              ]
-            }
-          ]
-        }).sort({ effectiveDate: -1 });
-        
-        if (!commissionStructure) {
-          // Use agent's base commission rate if no structure found
-          const rate = agent.commissionRate;
-          
-          // Create a commission calculation record with the base rate
-          const commissionCalculation = await CommissionCalculation.create({
-            agent: agentId,
-            transaction: transactionId,
-            baseAmount,
-            rate,
-            finalAmount: (baseAmount * rate) / 100,
-            status: CommissionStatus.PENDING
-          });
-          
-          logger.info(`Commission calculation created with base rate: ${commissionCalculation._id}`);
-          
-          return commissionCalculation;
-        }
+        return await this.calculateWithStructure(
+          agent,
+          transactionId,
+          baseAmount,
+          commissionStructureId
+        );
       }
       
-      // Calculate commission using the commission structure
-      let commissionRate = commissionStructure.baseRate;
+      // Try to find a default structure
+      const defaultStructure = await CommissionStructure.findOne({
+        $and: [
+          {
+            $or: [
+              { agent: agentId, isDefault: true },
+              { agent: null, isDefault: true }
+            ]
+          },
+          {
+            $or: [
+              { expirationDate: { $exists: false } },
+              { expirationDate: null },
+              { expirationDate: { $gt: new Date() } }
+            ]
+          }
+        ]
+      }).sort({ effectiveDate: -1 });
       
-      // Apply tiered rates if applicable
-      if (commissionStructure.tiers && commissionStructure.tiers.length > 0) {
-        // Find the highest tier that applies to this sales amount
-        const applicableTier = [...commissionStructure.tiers]
-          .sort((a, b) => b.threshold - a.threshold)
-          .find(tier => baseAmount >= tier.threshold);
-        
-        if (applicableTier) {
-          commissionRate = applicableTier.rate;
-        }
+      // If we found a default structure, use it
+      if (defaultStructure) {
+        return await this.calculateWithStructure(
+          agent,
+          transactionId,
+          baseAmount,
+          defaultStructure._id ? defaultStructure._id.toString() : ''
+        );
       }
       
-      // Calculate commission amount
-      const finalAmount = (baseAmount * commissionRate) / 100;
+      // Otherwise, use the agent's base rate
+      return await this.calculateWithBaseRate(agent, transactionId, baseAmount);
+    } catch (error) {
+      loggerService.error('Error calculating commission', {
+        error,
+        agentId,
+        transactionId,
+        baseAmount
+      });
+
+      if (error instanceof ApiError) {
+        throw error;
+      }
       
-      // Create commission calculation record
+      throw new DatabaseError('Failed to calculate commission');
+    }
+  }
+  
+  /**
+   * Helper method to calculate commission with a structure
+   */
+  private async calculateWithStructure(
+    agent: any,
+    transactionId: string,
+    baseAmount: number,
+    commissionStructureId: string
+  ): Promise<ICommissionCalculation> {
+    // Validate structure ID
+    if (!mongoose.Types.ObjectId.isValid(commissionStructureId)) {
+      throw new ApiError('Invalid commission structure ID', 400);
+    }
+    
+    // Get the structure
+    const commissionStructure = await CommissionStructure.findById(commissionStructureId);
+    
+    if (!commissionStructure) {
+      throw new ApiError('Commission structure not found', 404);
+    }
+    
+    // Verify the structure is valid for this agent
+    if (commissionStructure.agent && 
+        commissionStructure.agent.toString() !== agent._id.toString() &&
+        !commissionStructure.isDefault) {
+      throw new ApiError('Commission structure not valid for this agent', 400);
+    }
+    
+    // Calculate commission rate based on structure
+    let commissionRate = commissionStructure.baseRate;
+    
+    // Apply tiered rates if applicable
+    if (commissionStructure.tiers && commissionStructure.tiers.length > 0) {
+      // Find the highest tier that applies to this sales amount
+      const applicableTier = [...commissionStructure.tiers]
+        .sort((a, b) => b.min - a.min)
+        .find(tier => baseAmount >= tier.min);
+      
+      if (applicableTier) {
+        commissionRate = applicableTier.rate;
+      }
+    }
+    
+    // Calculate commission amount
+    const finalAmount = (baseAmount * commissionRate) / 100;
+    
+    // Create commission calculation record
+    try {
       const commissionCalculation = await CommissionCalculation.create({
-        agent: agentId,
+        agent: agent._id,
         transaction: transactionId,
         commissionStructure: commissionStructure._id,
         baseAmount,
@@ -113,16 +148,49 @@ class CommissionCalculationService {
         status: CommissionStatus.PENDING
       });
       
-      logger.info(`Commission calculation created: ${commissionCalculation._id}`);
+      loggerService.info('Commission calculation completed', {
+        calculationId: commissionCalculation._id,
+        finalAmount
+      });
       
       return commissionCalculation;
     } catch (error) {
-      if (error instanceof ApiError) {
-        throw error;
-      }
+      loggerService.error('Error creating commission calculation with structure:', { error });
+      throw new ApiError('Failed to create commission calculation', 500);
+    }
+  }
+  
+  /**
+   * Helper method to calculate commission with agent base rate
+   */
+  private async calculateWithBaseRate(
+    agent: any,
+    transactionId: string,
+    baseAmount: number
+  ): Promise<ICommissionCalculation> {
+    const rate = agent.commissionRate;
+    const finalAmount = (baseAmount * rate) / 100;
+    
+    try {
+      // Create a commission calculation record with the base rate
+      const commissionCalculation = await CommissionCalculation.create({
+        agent: agent._id,
+        transaction: transactionId,
+        baseAmount,
+        rate,
+        finalAmount,
+        status: CommissionStatus.PENDING
+      });
       
-      logger.error('Error calculating commission:', { error });
-      throw new ApiError('Failed to calculate commission', 500);
+      loggerService.info('Commission calculation completed', {
+        calculationId: commissionCalculation._id,
+        finalAmount
+      });
+      
+      return commissionCalculation;
+    } catch (error) {
+      loggerService.error('Error creating commission calculation with base rate:', { error });
+      throw new ApiError('Failed to create commission calculation', 500);
     }
   }
   
@@ -131,7 +199,7 @@ class CommissionCalculationService {
    */
   async getById(id: string): Promise<ICommissionCalculation> {
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      throw new ApiError('Invalid commission calculation ID', 400);
+      throw new ValidationError('Invalid commission calculation ID');
     }
     
     try {
@@ -140,17 +208,17 @@ class CommissionCalculationService {
         .populate('commissionStructure', 'name baseRate');
       
       if (!commissionCalculation) {
-        throw new ApiError('Commission calculation not found', 404);
+        throw new NotFoundError('Commission calculation not found');
       }
       
       return commissionCalculation;
     } catch (error) {
-      if (error instanceof ApiError) {
+      if (error instanceof NotFoundError) {
         throw error;
       }
       
-      logger.error(`Error fetching commission calculation ${id}:`, { error });
-      throw new ApiError('Failed to fetch commission calculation', 500);
+      loggerService.error(`Error fetching commission calculation ${id}:`, { error });
+      throw new DatabaseError('Failed to fetch commission calculation');
     }
   }
   
@@ -195,7 +263,7 @@ class CommissionCalculationService {
         }
       };
     } catch (error) {
-      logger.error('Error fetching commission calculations:', { error });
+      loggerService.error('Error fetching commission calculations:', { error });
       throw new ApiError('Failed to fetch commission calculations', 500);
     }
   }
@@ -209,16 +277,12 @@ class CommissionCalculationService {
     amount: number,
     description?: string
   ): Promise<ICommissionCalculation> {
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      throw new ApiError('Invalid commission calculation ID', 400);
-    }
-    
     try {
       const commissionCalculation = await this.getById(id);
       
       // Check if the commission is in a state where adjustments can be applied
       if (commissionCalculation.status === CommissionStatus.PAID) {
-        throw new ApiError('Cannot adjust a paid commission', 400);
+        throw new ValidationError('Cannot adjust a paid commission');
       }
       
       // Apply the adjustment
@@ -227,12 +291,14 @@ class CommissionCalculationService {
       // Get the updated record
       return await this.getById(id);
     } catch (error) {
-      if (error instanceof ApiError) {
+      // Rethrow NotFoundError and ValidationError
+      if (error instanceof NotFoundError || error instanceof ValidationError) {
+        loggerService.error(`Error applying adjustment to commission ${id}:`, { error });
         throw error;
       }
       
-      logger.error(`Error applying adjustment to commission ${id}:`, { error });
-      throw new ApiError('Failed to apply commission adjustment', 500);
+      loggerService.error(`Error applying adjustment to commission ${id}:`, { error });
+      throw new DatabaseError('Failed to apply commission adjustment');
     }
   }
   
@@ -261,7 +327,7 @@ class CommissionCalculationService {
         throw error;
       }
       
-      logger.error(`Error approving commission ${id}:`, { error });
+      loggerService.error(`Error approving commission ${id}:`, { error });
       throw new ApiError('Failed to approve commission', 500);
     }
   }
@@ -291,7 +357,7 @@ class CommissionCalculationService {
         throw error;
       }
       
-      logger.error(`Error marking commission ${id} as paid:`, { error });
+      loggerService.error(`Error marking commission ${id} as paid:`, { error });
       throw new ApiError('Failed to mark commission as paid', 500);
     }
   }
@@ -310,7 +376,7 @@ class CommissionCalculationService {
     
     try {
       // Validate agent exists
-      await AgentService.getAgentById(agentId);
+      await agentService.getAgentById(agentId);
       
       // Get commission statistics
       const stats = await CommissionCalculation.getAgentCommissionStats(
@@ -325,7 +391,7 @@ class CommissionCalculationService {
         throw error;
       }
       
-      logger.error(`Error getting commission stats for agent ${agentId}:`, { error });
+      loggerService.error(`Error getting commission stats for agent ${agentId}:`, { error });
       throw new ApiError('Failed to get commission statistics', 500);
     }
   }

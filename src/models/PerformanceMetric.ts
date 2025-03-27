@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { mongooseLogger } from '../utils/mongooseLogger';
 
 /**
  * Time period enumeration (Monthly, Quarterly, Yearly)
@@ -174,6 +175,9 @@ PerformanceMetricSchema.statics.getPerformanceTrends = async function(
   .sort({ period: -1 })
   .limit(limit);
 };
+
+// Add logging plugin
+PerformanceMetricSchema.plugin(mongooseLogger);
 
 // Export the model
 const PerformanceMetric = mongoose.model<IPerformanceMetric>(

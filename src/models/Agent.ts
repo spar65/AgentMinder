@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { mongooseLogger } from '../utils/mongooseLogger';
 
 /**
  * Agent status enum
@@ -52,6 +53,7 @@ export interface IAgent extends Document {
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
+  password: string;
   
   // Virtual properties
   fullName: string;
@@ -152,6 +154,11 @@ const AgentSchema = new Schema<IAgent>(
     },
     notes: {
       type: String,
+    },
+    password: {
+      type: String,
+      required: [true, 'Password is required'],
+      minlength: [6, 'Password must be at least 6 characters long'],
     },
   },
   {
@@ -266,6 +273,9 @@ AgentSchema.pre('validate', async function(this: IAgent, next) {
   
   next();
 });
+
+// Add logging plugin
+AgentSchema.plugin(mongooseLogger);
 
 // Export the model
 const Agent = mongoose.model<IAgent>('Agent', AgentSchema);
